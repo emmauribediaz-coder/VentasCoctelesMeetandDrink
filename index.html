@@ -177,17 +177,43 @@ function fmt(v){
   return '$'+Math.round(v);
 }
 
-function sparkline(vals, color){
-  const w=240, h=52, pad=5;
+function sparkline(vals, color, monthLabels){
+  const showLabels = vals.length <= 4;
+  const w=240;
+  const h = showLabels ? 76 : 52;
+  const padTop = showLabels ? 16 : 8, padBottom = showLabels ? 22 : 8, padX=10;
   const max=Math.max(...vals,1), min=Math.min(...vals);
   const range=(max-min)||1;
-  const step= vals.length>1 ? (w-pad*2)/(vals.length-1) : 0;
-  const pts=vals.map((v,i)=>[pad+i*step, h-pad-((v-min)/range)*(h-pad*2)]);
+  const plotH = h - padTop - padBottom;
+  const step= vals.length>1 ? (w-padX*2)/(vals.length-1) : 0;
+  const pts=vals.map((v,i)=>[padX+i*step, padTop + plotH - ((v-min)/range)*plotH]);
   const path=pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
-  const last=pts[pts.length-1];
+
+  const circles = pts.map((p,i)=>{
+    const isLast = i===pts.length-1;
+    const mLabel = monthLabels ? monthLabels[i] : '';
+    const title = `${mLabel}: ${fmt(vals[i])}`;
+    const r = isLast ? 4 : 3;
+    // invisible larger hit-area circle for easier hover, plus visible dot, both carry the tooltip
+    return `<g>
+      <circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="9" fill="transparent">
+        <title>${title}</title>
+      </circle>
+      <circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${r}" fill="${isLast?color:'#fff'}" stroke="${color}" stroke-width="2" style="cursor:pointer;">
+        <title>${title}</title>
+      </circle>
+    </g>`;
+  }).join('');
+
+  const labels = showLabels && monthLabels ? pts.map((p,i)=>{
+    return `<text x="${p[0].toFixed(1)}" y="${h-6}" text-anchor="middle" font-size="9" fill="#6B7280">${monthLabels[i]}</text>
+            <text x="${p[0].toFixed(1)}" y="${padTop-1}" text-anchor="middle" font-size="8.5" fill="${color}" font-weight="700">${fmt(vals[i]).replace('$','')}</text>`;
+  }).join('') : '';
+
   return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
     <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-    <circle cx="${last[0]}" cy="${last[1]}" r="3.5" fill="${color}"/>
+    ${circles}
+    ${labels}
   </svg>`;
 }
 
@@ -242,7 +268,7 @@ function renderCards(fromIdx, toIdx){
         </div>
         <div class="card-value">${fmt(last)}</div>
       </div>
-      ${sparkline(vals, lineColor)}
+      ${sparkline(vals, lineColor, rangeMonths.map(mo=>MONTH_LABELS[mo]))}
       <span class="card-status ${statusClass}">${statusText}</span>
       <p class="card-avg">🥃 ${avgText}</p>
     `;
